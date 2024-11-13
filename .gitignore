@@ -2,3 +2,5 @@
 /backend/.venv
 /poetry.lock
 /pyproject.toml
+/backend/alembic/
+/backend/alembic.ini
