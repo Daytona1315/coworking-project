@@ -1,6 +1,6 @@
-/.idea
-/backend/.venv
-/poetry.lock
-/pyproject.toml
-/backend/alembic/
-/backend/alembic.ini
+.idea/
+backend/.venv/
+backend/alembic/
+backend/alembic.ini
+poetry.lock
+pyproject.toml

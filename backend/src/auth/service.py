@@ -5,7 +5,6 @@ from passlib.hash import bcrypt
 from pydantic import ValidationError
 from sqlalchemy import select, insert
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from starlette import status
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,27 +41,22 @@ class AuthService:
                 algorithms=[settings.jwt_algorithm],
             )
         except jwt.ExpiredSignatureError:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                detail='Cannot validate token'
-            )
+            raise HTTPException(400, detail='Cannot validate token')
 
         user_data = payload.get('user')
 
         try:
             user = User.model_validate(user_data)
         except ValidationError:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                detail='Cannot validate token'
-            )
+            raise HTTPException(400, detail='Cannot validate token')
 
         return user
 
     @classmethod
     def create_token(cls, user: User) -> Token:
-        user_data = user.model_dump()
-        now = datetime.now()
+        user_data = User.model_validate(user).model_dump()
+        user_data['id'] = str(user_data['id'])
+        now = datetime.utcnow()
         payload = {
             'iat': now,
             'nbf': now,
@@ -104,11 +98,11 @@ class AuthService:
 
         except IntegrityError:
             await self.session.rollback()
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="User already exists")
+            raise HTTPException(400, detail="User already exists")
 
         except SQLAlchemyError as e:
             await self.session.rollback()
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+            raise HTTPException(500, detail="Database error")
 
         return token
 
@@ -120,16 +114,18 @@ class AuthService:
                     models.Credential, models.Credential.user_id == models.User.id
                 ).filter(models.Credential.email == email)
                 user_result = await self.session.execute(user_stmt)
-                user, credentials = user_result.scalar()
+                result = user_result.first()
 
-                if not user:
-                    raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
+                if not result:
+                    raise HTTPException(404, detail="User not found")
+
+                user, credentials = result
 
                 if not self.verify_password(password, credentials.hashed_password):
-                    raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Incorrect password")
+                    raise HTTPException(401, detail="Incorrect password")
 
                 token = self.create_token(user)
                 return token
 
-        except SQLAlchemyError:
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Something went wrong")
+        except SQLAlchemyError as e:
+            raise HTTPException(500, detail="Something went wrong.")
