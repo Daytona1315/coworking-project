@@ -1,4 +1,5 @@
 import uuid
+from enum import Enum as PyEnum
 from sqlalchemy import Enum
 from sqlalchemy import (
     String, Boolean, ForeignKey,
@@ -9,7 +10,7 @@ from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.orm import Mapped, mapped_column
 
 
-class Role(Enum):
+class Role(PyEnum):
     LEADER = "leader"
     MEMBER = "member"
 
@@ -28,16 +29,23 @@ class User(Base):
     avatar: Mapped[str] = mapped_column(String, nullable=True, default='/path/to/default/avatar.jpg')
     is_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    credentials: Mapped[list['Credential']] = relationship(
+        "Credential", back_populates="user", foreign_keys="Credential.user_id"
+    )
+
+    teams: Mapped[list["TeamMembership"]] = relationship("TeamMembership", back_populates="user")
+
 
 # Учётные данные пользователей
 class Credential(Base):
     __tablename__ = 'credentials'
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     email: Mapped[str] = mapped_column(ForeignKey("users.email"))
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
-    user: Mapped['User'] = relationship(back_populates='credentials')
+
+    user: Mapped['User'] = relationship("User", back_populates='credentials', foreign_keys=[user_id])
 
 
 # Таблица команд
@@ -58,7 +66,7 @@ class TeamMembership(Base):
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
     team_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("teams.id"), primary_key=True)
-    role: Mapped[Role] = mapped_column(Role, nullable=False, default=Role.MEMBER)
+    role: Mapped[Role] = mapped_column(Enum(Role, name="role"), nullable=False, default=Role.MEMBER)
 
     user: Mapped["User"] = relationship("User", back_populates="teams")
     team: Mapped["Team"] = relationship("Team", back_populates="members")
